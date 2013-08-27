@@ -1,10 +1,10 @@
 <?php
 /*
-Plugin Name: Shy Posts
+Plugin Name: Shy Posts New
 Plugin URI: http://codeventure.net
 Description: Provides a mechanism for preventing posts from being rendered on the homepage loop
 Author: Topher
-Version: 1.1
+Version: 1.2
 Author URI: http://codeventure.net
 */
 
@@ -21,7 +21,7 @@ Author URI: http://codeventure.net
  * Instantiate the Shy_Posts object
  * @since Shy_Posts 1.0
  */
-return new Shy_Posts();
+return new Shy_Posts_New();
 
 /**
  * Main Shy Posts Class
@@ -34,7 +34,7 @@ return new Shy_Posts();
  * @package Shy_Posts
  * @author Topher
  */
-class Shy_Posts {
+class Shy_Posts_New {
 
 	/**
 	 * @var string
@@ -51,8 +51,8 @@ class Shy_Posts {
 
 		// only do this in the admin area
 		if ( is_admin() ) {
-			add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 			add_action( 'save_post', array( $this, 'save' ) );
+			add_action( 'post_submitbox_misc_actions', array( $this, 'option_hide_in_publish' ) );
 		}
 
 		// only do this NOT in the admin area
@@ -63,21 +63,34 @@ class Shy_Posts {
 	}
 
 	/**
-	 * Adds the meta box container in the top side
+	 * Places checkbox in the Publish meta box
 	 *
 	 * @access public
 	 * @return void
 	 */
-	public function add_meta_box() {
-		add_meta_box(
-			 'shy_post'
-			,__( 'Shy Post', $this->text_domain )
-			,array( &$this, 'render_meta_box_content' )
-			,'post'
-			,'side'
-			,'default'
-		);
+	public function option_hide_in_publish() {
+
+		global $post;
+
+		// Use nonce for verification
+		wp_nonce_field( plugin_basename( __FILE__ ), 'shyposts_nonce' );
+
+		// The actual fields for data entry
+		// Get the data
+		$value = get_post_meta( $post->ID, 'shy_post', true );
+
+		// get the value of the option we want
+		$checked = $value['shy_post'];
+
+		// echo the meta box
+        echo '<div class="misc-pub-section misc-pub-section-last">';
+		echo '<input type="checkbox" id="shyposts_hide_field" name="shyposts_hide_field" value="1" ' . checked( $checked, true, false ) . '" title="' . __('Removes this post from the homepage, but NOT from any other page', $this->text_domain) . '"> ';
+		echo '<label for="shyposts_hide_field" title="' . __('Removes this post from the homepage, but NOT from any other page', $this->text_domain) . '">';
+		echo __( 'Hide on the homepage?', $this->text_domain);
+		echo '</label> ';
+        echo '</div>';
 	}
+
 
 	/**
 	 * Updates the options table with the form data
@@ -108,33 +121,6 @@ class Shy_Posts {
 		update_post_meta( $post_id, 'shy_post', $shydata );
 	}
 
-
-	/**
-	 * Render Meta Box content
-	 *
-	 * @access public
-	 * @return void
-	 */
-	public function render_meta_box_content( $post ) {
-
-		// Use nonce for verification
-		wp_nonce_field( plugin_basename( __FILE__ ), 'shyposts_nonce' );
-
-		// The actual fields for data entry
-		// Get the data
-		$value = get_post_meta( $post->ID, 'shy_post', true );
-
-		// get the value of the option we want
-		$checked = $value['shy_post'];
-
-		// echo the meta box
-		echo '<input type="checkbox" id="shyposts_hide_field" name="shyposts_hide_field" value="1" ' . checked( $checked, true, false ) . '" title="' . __('Removes this post from the homepage, but NOT from any other page', $this->text_domain) . '"> ';
-		echo '<label for="shyposts_hide_field" title="' . __('Removes this post from the homepage, but NOT from any other page', $this->text_domain) . '">';
-		echo __( 'Hide on the homepage?', $this->text_domain);
-		echo '</label> ';
-	}
-
-
 	/**
 	 * Filter posts on homepage
 	 *
@@ -162,6 +148,5 @@ class Shy_Posts {
 		}
 	}
 
-
-
+// end class
 }
