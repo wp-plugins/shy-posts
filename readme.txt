@@ -36,7 +36,7 @@ I haven't been asked any yet.  :)
 == Changelog ==
 
 = 1.2 =
-Make the checkbox be in the Publish box instead of a custom meta box
+* Make the checkbox be in the Publish box instead of a custom meta box
 
 = 1.1 =
 * Change pre_get_posts filter to an action
