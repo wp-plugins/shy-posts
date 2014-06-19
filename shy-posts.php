@@ -4,7 +4,7 @@ Plugin Name: Shy Posts
 Plugin URI: http://codeventure.net
 Description: Provides a mechanism for preventing posts from being rendered on the homepage loop
 Author: Topher
-Version: 1.2
+Version: 1.3
 Author URI: http://codeventure.net
 */
 
@@ -18,10 +18,10 @@ Author URI: http://codeventure.net
 
 
 /**
- * Instantiate the Shy_Posts object
+ * Instantiate the Shy_Posts instance
  * @since Shy_Posts 1.0
  */
-return new Shy_Posts_New();
+add_action( 'plugins_loaded', array( 'Shy_Posts', 'instance' ) );
 
 /**
  * Main Shy Posts Class
@@ -34,25 +34,75 @@ return new Shy_Posts_New();
  * @package Shy_Posts
  * @author Topher
  */
-class Shy_Posts_New {
+class Shy_Posts {
 
 	/**
-	 * @var string
-	 */
-	public $text_domain = 'shyposts';
+ 	* Holds array of post IDs that are shy.
+ 	*
+ 	* @access private
+ 	* @since 1.2
+ 	* @var array
+ 	*/
+	private $shy_post_ids = NULL;
 
 	/**
-	 * Shy_Posts Constructor
+ 	* Transient name
+ 	*
+ 	* @access private
+ 	* @since 1.2
+ 	* @var string
+ 	*/
+	private $shy_post_transient_name = 'shy_posts_transient';
+
+	/**
+ 	* Instance handle
+ 	*
+ 	* @static
+ 	* @since 1.2
+ 	* @var string
+ 	*/
+    private static $__instance = null;
+ 
+	/**
+	 * Shy_Posts Constructor, actually contains nothing
 	 *
 	 * @access public
 	 * @return void
 	 */
-	public function __construct() {
+    private function __construct() {}
+ 
+	/**
+	 * Instance initiator, runs setup etc.
+	 *
+	 * @access public
+	 * @return self
+	 */
+    public static function instance() {
+        if ( ! is_a( self::$__instance, __CLASS__ ) ) {
+            self::$__instance = new self;
+            self::$__instance->setup();
+        }
+ 
+        return self::$__instance;
+    }
+ 
+	/**
+	 * Runs things that would normally be in __construct
+	 *
+	 * @access private
+	 * @return void
+	 */
+    private function setup() {
+		// get the shy posts transient
+		$this->get_shy_post_ids();
+
+		register_activation_hook( __FILE__, array( 'Shy_Posts', 'install' ) );
 
 		// only do this in the admin area
 		if ( is_admin() ) {
 			add_action( 'save_post', array( $this, 'save' ) );
 			add_action( 'post_submitbox_misc_actions', array( $this, 'option_hide_in_publish' ) );
+			add_filter( 'is_protected_meta', array( $this, 'hide_field' ), 10, 2 );
 		}
 
 		// only do this NOT in the admin area
@@ -60,6 +110,94 @@ class Shy_Posts_New {
 			// filter the homepage loop
 			add_action( 'pre_get_posts', array( $this, 'exclude_shy_posts_from_homepage' ) );
 		}
+    }
+
+	/**
+	 * On activation, get all the post ids from post meta data and store them in the transient
+	 *
+	 * @static
+	 * @return void
+	 */
+	 static function install() {
+
+		$args = array(
+			'post_status' => 'publish'
+			,'post_type' => 'post'
+			,'no_found_rows' => true
+			,'nopaging' => true
+			,'fields' => 'ids'
+			,'meta_query' => array(
+				array(
+					'key' => 'shy_post',
+					'value' => '1',
+					'compare' => '='
+				)
+			)
+		);
+
+		$shy_post_ids = get_posts($args);
+
+		set_transient( 'shy_posts_transient', $shy_post_ids, 60 * 60 * 24 * 365 );
+
+	 }
+
+	/**
+	 * Filter the post meta field so it doesn't appear in the Custom Fields list
+	 *
+	 * @access private
+	 * @return bool
+	 */
+	public function hide_field( $protected, $meta_key ) {
+		if ( 'shy_post' == $meta_key ) {
+			$protected = true;
+		}
+		return $protected;
+	}
+
+	/**
+	 * Get shy post IDs
+	 *
+	 * @access public
+	 * @return array
+	 */
+	public function get_shy_post_ids() {
+
+		$shy_post_ids = get_transient( $this->shy_post_transient_name );
+
+		if(!is_array($shy_post_ids)) {
+			$shy_post_ids = array();
+		}
+
+		$this->shy_post_ids = $shy_post_ids;
+
+	}
+
+	/**
+	 * Update the shy_posts_transient
+	 *
+	 * @access private
+	 * @return void
+	 */
+	private function update_transient( $post_id, $shydata) {
+
+
+		if($shydata != 1) {
+			// invert the post ids array so we can delete by key
+			$shy_post_ids_flipped = array_flip($this->shy_post_ids);
+
+			// delete the one we don't want anymore
+			unset($shy_post_ids_flipped[$post_id]);
+
+			// flip it back
+			$this->shy_post_ids = array_flip($shy_post_ids_flipped);
+		} else {
+			// add this post_id to the array
+			$this->shy_post_ids[] = $post_id;
+		}
+		
+		// save it back
+		set_transient( $this->shy_post_transient_name, $this->shy_post_ids, 60 * 60 * 24 * 365 );
+
 	}
 
 	/**
@@ -83,12 +221,12 @@ class Shy_Posts_New {
 		$checked = $value['shy_post'];
 
 		// echo the meta box
-        echo '<div class="misc-pub-section misc-pub-section-last">';
-		echo '<input type="checkbox" id="shyposts_hide_field" name="shyposts_hide_field" value="1" ' . checked( $checked, true, false ) . '" title="' . __('Removes this post from the homepage, but NOT from any other page', $this->text_domain) . '"> ';
-		echo '<label for="shyposts_hide_field" title="' . __('Removes this post from the homepage, but NOT from any other page', $this->text_domain) . '">';
-		echo __( 'Hide on the homepage?', $this->text_domain);
+		echo '<div class="misc-pub-section misc-pub-section-last">';
+		echo '<input type="checkbox" id="shyposts_hide_field" name="shyposts_hide_field" value="1" ' . checked( $checked, true, false ) . '" title="' . esc_attr__('Removes this post from the homepage, but NOT from any other page', 'shyposts') . '"> ';
+		echo '<label for="shyposts_hide_field" title="' . esc_attr__('Removes this post from the homepage, but NOT from any other page', 'shyposts') . '">';
+		echo __( 'Hide on the homepage?', 'shyposts');
 		echo '</label> ';
-        echo '</div>';
+		echo '</div>';
 	}
 
 
@@ -102,12 +240,9 @@ class Shy_Posts_New {
 	public function save( $post_id ) {
 
 		// Check if the current user is authorised to do this action. 
-		if ( 'page' == $_REQUEST['post_type'] ) {
-			if ( ! current_user_can( 'edit_page', $post_id ) )
-				return;
-		} else {
-			if ( ! current_user_can( 'edit_post', $post_id ) )
-				return;
+		$post_type = get_post_type_object( get_post( $post_id )->post_type );
+		if ( ! current_user_can( $post_type->cap->edit_post, $post_id ) ) {
+			return;
 		}
 
 		// Check if the user intended to change this value.
@@ -119,6 +254,9 @@ class Shy_Posts_New {
 
 		// Update or create the key/value
 		update_post_meta( $post_id, 'shy_post', $shydata );
+
+		$this->update_transient( $post_id, $shydata );
+
 	}
 
 	/**
@@ -129,22 +267,12 @@ class Shy_Posts_New {
 	 * @return void
 	 */
 	public function exclude_shy_posts_from_homepage( $query ) {
-		// make sure we're looking in the right place, !is_admin is a safety net
+		// make sure we're looking in the right place
 		if ( is_front_page() AND $query->is_main_query() ) {
-			// set a meta query to exclude posts that have the shy_posts val set to 1
-			$query->set('meta_query', array(
-				array(
-					'key' => 'shy_post',
-					'value' => '1',
-					'compare' => '!='
-				),
-				'relation' => 'OR',
-				array(
-					'key' => 'shy_post',
-					'value' => '1',
-					'compare' => 'NOT EXISTS'
-				),
-			) );
+
+			// exclude all posts in the array of hidden posts
+			$query->set('post__not_in', $this->shy_post_ids);
+
 		}
 	}
 
