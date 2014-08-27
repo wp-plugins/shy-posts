@@ -1,9 +1,9 @@
-=== Plugin Name ===
+=== Shy Posts ===
 Contributors: topher1kenobe
 Tags: posts
 Requires at least: 3.0
-Tested up to: 3.6
-Stable tag: 1.2
+Tested up to: 4.0
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -34,6 +34,15 @@ I haven't been asked any yet.  :)
 1. The checkbox in the Publish box on the Post editing page
 
 == Changelog ==
+
+= 1.3.1 =
+* Minor bug fix regarding storage method
+
+= 1.3 =
+* Store shy post IDs in a transient
+* Make exclusion query use transient
+* New query is much MUCH faster
+* Various input sanitizations
 
 = 1.2 =
 * Make the checkbox be in the Publish box instead of a custom meta box
